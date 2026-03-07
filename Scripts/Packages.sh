@@ -97,8 +97,6 @@ UPDATE_PACKAGE "vnt" "lmq8267/luci-app-vnt" "main"
 UPDATE_PACKAGE "easytier" "EasyTier/luci-app-easytier" "main"  #luci-app-easytier
 UPDATE_PACKAGE "tailscale-community" "Tokisaki-Galaxy/luci-app-tailscale-community" "master"  #luci-app-tailscale社区版
 
-UPDATE_PACKAGE "istore" "linkease/istore" "main"
-
 #更新软件包版本
 UPDATE_VERSION() {
 	local PKG_NAME=$1
