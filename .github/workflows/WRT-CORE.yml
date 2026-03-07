@@ -204,29 +204,39 @@ jobs:
           du -h --max-depth=1
           echo "======================="
 
-      - name: Package Firmware
+      - name: Package Firmware (Stable & No Rename)
         run: |
-          cd ./wrt/ && mkdir ./upload/
+          cd ./wrt/ && mkdir -p ./upload/
 
-          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
+          # 1. 备份配置文件
+          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO".txt
 
-          if [[ $WRT_TEST != 'true' ]]; then
-            echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
-            echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
+          # 2. 清理杂质文件 (不含 .img / .bin / .tar.gz)
+          echo ">>> 正在清理无效的索引文件..."
+          find ./bin/targets/ -iregex ".*\(buildinfo\|json\|sha256sums\)$" -exec rm -f {} +
+          
+          # 3. 彻底删除巨大的 packages 文件夹，防止误抓 ipk 插件包
+          find ./bin/targets/ -type d -name "packages" -exec rm -rf {} +
 
-            find ./bin/targets/ -iregex ".*\(buildinfo\|json\|sha256sums\|packages\)$" -exec rm -rf {} +
+          # 4. 稳健收集：直接根据后缀名物理移动所有固件，不进行任何改名
+          echo ">>> 正在提取所有固件镜像..."
+          find ./bin/targets/ -type f \( \
+            -name "*.img*" -o \
+            -name "*.bin" -o \
+            -name "*.manifest" -o \
+            -name "*.vmdk" -o \
+            -name "*.qcow2" -o \
+            -name "*.tar.gz" \
+          \) -exec mv -f {} ./upload/ \;
 
-            for FILE in $(find ./bin/targets/ -type f -iname "*$WRT_TARGET*") ; do
-              EXT=$(basename $FILE | cut -d '.' -f 2-)
-              NAME=$(basename $FILE | cut -d '.' -f 1 | grep -io "\($WRT_TARGET\).*")
-              NEW_FILE="$WRT_INFO"-"$WRT_BRANCH"-"$NAME"-"$WRT_DATE"."$EXT"
-              mv -f $FILE ./upload/$NEW_FILE
-            done
+          # 5. 日志输出，方便在 Actions 页面核查
+          echo "========================================"
+          echo "✅ 待上传固件清单 (原名保存):"
+          ls -lh ./upload/
+          echo "========================================"
 
-            find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
-
-            make clean -j$(nproc)
-          fi
+          # 6. 将 upload 文件夹路径传给后续 Release 步骤
+          echo "FIRMWARE=$PWD/upload" >> $GITHUB_ENV
 
       - name: Release Firmware
         uses: softprops/action-gh-release@master
